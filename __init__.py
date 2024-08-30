@@ -140,6 +140,9 @@ NODE_CONFIG = {
     "CreateInstanceDiffusionTracking": {"class": CreateInstanceDiffusionTracking},
     "AppendInstanceDiffusionTracking": {"class": AppendInstanceDiffusionTracking},
     "DrawInstanceDiffusionTracking": {"class": DrawInstanceDiffusionTracking},
+
+    "GradientMap": {"class": GradientMap, "name": "Gradient Map Mask"},
+
 }
 
 def generate_node_mappings(node_config):
