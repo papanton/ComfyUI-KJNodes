@@ -1298,21 +1298,13 @@ Apply gradient map to mask
         for img in image:
             pil_image = tensor2pil(img)[0]  # Use only the first image from the list
 
-            # Convert to grayscale to get luminance
+            # Convert to grayscale
             gray_image = np.array(pil_image.convert('L'))
 
             # Apply gradient map
             gradient_mapped = gradient_array[gray_image]
 
-            # Preserve luminance of original image
-            original_array = np.array(pil_image)
-            luminance = np.array(pil_image.convert('L')).astype(float) / 255.0
-            luminance = luminance[:, :, np.newaxis]  # Add channel dimension
-            
-            # Blend gradient map with original image based on luminance
-            blended = gradient_mapped * luminance + original_array * (1 - luminance)
-            
-            gradient_mapped_image = Image.fromarray(np.uint8(blended))
+            gradient_mapped_image = Image.fromarray(np.uint8(gradient_mapped))
 
             # Apply opacity
             if opacity < 100:
