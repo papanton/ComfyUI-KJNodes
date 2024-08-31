@@ -1294,11 +1294,9 @@ Apply gradient map to mask
         gradient_image = Image.fromarray(np.uint8(gradient_array.reshape(1, -1, 3).repeat(50, axis=0)))
         gradient_tensor = pil2tensor(gradient_image)
         ret_images = []
+        
         for img in image:
-            pil_images = tensor2pil(img)
-            
-            # Use only the first image from the list returned by tensor2pil
-            pil_image = pil_images[0]
+            pil_image = tensor2pil(img)[0]  # Use only the first image from the list
 
             # Convert to grayscale to get luminance
             gray_image = np.array(pil_image.convert('L'))
@@ -1308,10 +1306,13 @@ Apply gradient map to mask
 
             # Preserve luminance of original image
             original_array = np.array(pil_image)
-            luminance = np.sum(original_array * [0.299, 0.587, 0.114], axis=2, keepdims=True) / 255.0
-            gradient_mapped = gradient_mapped * luminance + original_array * (1 - luminance)
-
-            gradient_mapped_image = Image.fromarray(np.uint8(gradient_mapped))
+            luminance = np.array(pil_image.convert('L')).astype(float) / 255.0
+            luminance = luminance[:, :, np.newaxis]  # Add channel dimension
+            
+            # Blend gradient map with original image based on luminance
+            blended = gradient_mapped * luminance + original_array * (1 - luminance)
+            
+            gradient_mapped_image = Image.fromarray(np.uint8(blended))
 
             # Apply opacity
             if opacity < 100:
@@ -1319,7 +1320,7 @@ Apply gradient map to mask
 
             # Apply mask if provided
             if layer_mask is not None:
-                mask = tensor2pil(layer_mask)[0].convert('L')  # Also use first image for mask
+                mask = tensor2pil(layer_mask)[0].convert('L')  # Use first image for mask
                 pil_image.paste(gradient_mapped_image, (0, 0), mask)
             else:
                 pil_image = gradient_mapped_image
