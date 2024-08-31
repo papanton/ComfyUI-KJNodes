@@ -1285,53 +1285,34 @@ Apply gradient map to mask
             mid_rgb = hex_to_rgb(mid_color)
             end_rgb = hex_to_rgb(end_color)
             
-            mid_index = int(255 * mid_point)
+            mid_index = int(255 * max(0, min(1, mid_point)))  # Ensure mid_point is between 0 and 1
             gradient1 = np.array([np.linspace(start_rgb[i], mid_rgb[i], mid_index + 1) for i in range(3)]).T
             gradient2 = np.array([np.linspace(mid_rgb[i], end_rgb[i], 256 - mid_index) for i in range(3)]).T
             return np.vstack((gradient1[:-1], gradient2))
-
-        gradient_array = create_gradient_array(start_color, mid_color, end_color, mid_point)
-
-        gradient_image = Image.fromarray(np.uint8(gradient_array.reshape(1, -1, 3).repeat(50, axis=0)))
-        gradient_tensor = pil2tensor(gradient_image)
-
-        # Ensure we're working with a single image
-        if image.dim() == 4 and image.size(0) == 1:
-            image = image.squeeze(0)
-        elif image.dim() != 3:
-            raise ValueError("Input image should be a single 3D tensor (C, H, W)")
-
-        pil_image = tensor2pil(image)
         
-        # Convert to grayscale to get luminance
-        gray_image = np.array(pil_image.convert('L'))
+        gradient_array = create_gradient_array(start_color, mid_color, end_color, mid_point)
+        gradient_height = max(50, image.shape[2] // 10)  # Scale gradient height based on image size
+        gradient_image = Image.fromarray(np.uint8(gradient_array.reshape(1, -1, 3).repeat(gradient_height, axis=0)))
+        gradient_tensor = pil2tensor(gradient_image)
+        
+        # Convert entire batch to numpy for vectorized operations
+        image_np = image.cpu().numpy()
+        gray_image = np.mean(image_np, axis=3)  # Convert to grayscale
         
         # Apply gradient map
-        gradient_mapped = gradient_array[gray_image]
+        gradient_mapped = gradient_array[np.clip(gray_image * 255, 0, 255).astype(int)]
         
         # Preserve luminance of original image
-        original_array = np.array(pil_image)
-        luminance = np.sum(original_array * [0.299, 0.587, 0.114], axis=2, keepdims=True) / 255.0
-        gradient_mapped = gradient_mapped * luminance + original_array * (1 - luminance)
-        
-        gradient_mapped_image = Image.fromarray(np.uint8(gradient_mapped))
+        luminance = np.sum(image_np * [0.299, 0.587, 0.114], axis=3, keepdims=True) / 255.0
+        gradient_mapped = gradient_mapped * luminance + image_np * (1 - luminance)
         
         # Apply opacity
         if opacity < 100:
-            gradient_mapped_image = Image.blend(pil_image, gradient_mapped_image, opacity / 100)
+            gradient_mapped = gradient_mapped * (opacity / 100) + image_np * (1 - opacity / 100)
         
         # Apply mask if provided
         if layer_mask is not None:
-            if layer_mask.dim() == 3 and layer_mask.size(0) == 1:
-                layer_mask = layer_mask.squeeze(0)
-            elif layer_mask.dim() != 2:
-                raise ValueError("Layer mask should be a single 2D tensor (H, W)")
-            
-            mask = tensor2pil(layer_mask).convert('L')
-            pil_image.paste(gradient_mapped_image, (0, 0), mask)
-        else:
-            pil_image = gradient_mapped_image
+            mask_np = layer_mask.cpu().numpy()
+            gradient_mapped = gradient_mapped * mask_np[:, :, :, None] + image_np * (1 - mask_np[:, :, :, None])
         
-        result_tensor = pil2tensor(pil_image)
-
-        return (result_tensor, gradient_tensor)
+        return (torch.from_numpy(gradient_mapped).to(image.device), gradient_tensor)
