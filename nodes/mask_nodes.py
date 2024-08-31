@@ -1295,7 +1295,10 @@ Apply gradient map to mask
         gradient_tensor = pil2tensor(gradient_image)
         ret_images = []
         for img in image:
-            pil_image = tensor2pil(img)
+            pil_images = tensor2pil(img)
+            
+            # Use only the first image from the list returned by tensor2pil
+            pil_image = pil_images[0]
 
             # Convert to grayscale to get luminance
             gray_image = np.array(pil_image.convert('L'))
@@ -1316,7 +1319,7 @@ Apply gradient map to mask
 
             # Apply mask if provided
             if layer_mask is not None:
-                mask = tensor2pil(layer_mask).convert('L')
+                mask = tensor2pil(layer_mask)[0].convert('L')  # Also use first image for mask
                 pil_image.paste(gradient_mapped_image, (0, 0), mask)
             else:
                 pil_image = gradient_mapped_image
